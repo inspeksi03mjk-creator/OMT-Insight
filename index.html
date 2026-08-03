@@ -4,28 +4,50 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OMT Insight - Peta & Inspeksi</title>
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    
+    <!-- FIX MUTLAK: Menyisipkan CSS Leaflet Core langsung di dalam skrip agar tidak pecah/terblokir -->
     <style>
+        /* Leaflet Core CSS CSS */
+        .leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile-container,.leaflet-map-pane svg,.leaflet-map-pane canvas,.leaflet-zoom-box,.leaflet-image-layer,.leaflet-layer{position:absolute;left:0;top:0}
+        .leaflet-container{overflow:hidden;-ms-touch-action:none;touch-action:none;cursor:default;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+        .leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow{-webkit-user-drag:none;user-select:none;-webkit-user-select:none}
+        .leaflet-tile{filter:inherit;visibility:hidden}
+        .leaflet-tile-loaded{visibility:inherit}
+        .leaflet-zoom-box{width:0;height:0;-moz-box-sizing:border-box;box-sizing:border-box;z-index:800}
+        .leaflet-pane{z-index:400}
+        .leaflet-tile-pane{z-index:200}
+        .leaflet-overlay-pane{z-index:400}
+        .leaflet-marker-pane{z-index:600}
+        .leaflet-shadow-pane{z-index:500}
+        .leaflet-map-pane svg{z-index:200}
+        .leaflet-map-pane canvas{z-index:100}
+        .leaflet-vml-shape{width:1px;height:1px}
+        .lvml{behavior:url(#default#VML);display:inline-block;position:absolute}
+        .leaflet-control{position:relative;z-index:800;pointer-events:auto;float:left;clear:both}
+        .leaflet-top,.leaflet-bottom{position:absolute;z-index:1000;pointer-events:none}
+        .leaflet-top{top:0}.leaflet-right{right:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}
+        .leaflet-control{margin-left:10px;margin-top:10px}
+        .leaflet-top .leaflet-control{margin-top:10px}
+        .leaflet-bottom .leaflet-control{margin-bottom:10px}
+        .leaflet-right .leaflet-control{float:right;margin-right:10px}
+        
+        /* Desain Tata Letak Form & Peta */
         * { box-sizing: border-box; }
         body {
             margin: 0; padding: 0;
             font-family: Arial, sans-serif;
             background-color: #f4f6f9;
         }
-        /* Mengunci area peta agar tidak tumpang tindih */
         #map { 
-            height: 300px; 
+            height: 280px; 
             width: 100%; 
             position: relative;
-            z-index: 1;
             border-bottom: 3px solid #007bff;
         }
-        /* Area form yang mengalir normal ke bawah */
         .container-inspeksi {
             padding: 15px;
             max-width: 600px;
-            margin: 0 auto 30px auto;
+            margin: 0 auto;
         }
         .form-group { margin-bottom: 15px; }
         .form-group label {
@@ -49,19 +71,15 @@
         .btn-success { background-color: #28a745; margin-top: 10px; }
         
         #preview-foto {
-            display: none;
-            width: 80px;
-            height: 80px;
-            margin-top: 8px;
-            object-fit: cover;
-            border-radius: 5px;
-            border: 1px solid #ddd;
+            display: none; width: 80px; height: 80px;
+            margin-top: 8px; object-fit: cover;
+            border-radius: 5px; border: 1px solid #ddd;
         }
     </style>
 </head>
 <body>
 
-    <!-- 1. Area Peta (Terkunci Sempurna) -->
+    <!-- 1. Area Peta Terkunci -->
     <div id="map"></div>
     
     <!-- 2. Area Formulir Inspeksi -->
@@ -123,15 +141,14 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
     <script>
-        // Set awal peta di Mojokerto
-        var map = L.map('map').setView([-7.46, 112.42], 14);
+        var map = L.map('map', {zoomControl: false}).setView([-7.46, 112.42], 14);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19, attribution: '© OpenStreetMap'
+            maxZoom: 19
         }).addTo(map);
 
-        // Perbaikan Leaflet agar ubin peta dimuat ulang dengan benar
-        setTimeout(function(){ map.invalidateSize(); }, 500);
+        // Memaksa peta me-render ulang ukuran bidangnya secara konstan
+        setTimeout(function(){ map.invalidateSize(); }, 400);
 
         var marker;
 
@@ -163,15 +180,15 @@
         });
 
         map.on('locationerror', function(e) {
-            alert("Gagal mendapatkan lokasi GPS: " + e.message);
+            alert("GPS aktif? Pastikan izin lokasi browser diizinkan.");
         });
 
-        // Alur Unggah Kompresi + Cloudinary Awan Aman
+        // Modul Unggah Gambar Cloudinary Aman
         document.getElementById('foto-file').addEventListener('change', function(e) {
             var file = e.target.files[0];
             if (!file) return;
 
-            document.getElementById('link-foto-hidden').value = "⏳ Menyiapkan foto...";
+            document.getElementById('link-foto-hidden').value = "⏳ Memproses foto...";
 
             var reader = new FileReader();
             reader.readAsDataURL(file);
@@ -181,7 +198,6 @@
                 img.onload = function() {
                     var canvas = document.createElement('canvas');
                     var ctx = canvas.getContext('2d');
-                    
                     var MAX_WIDTH = 1000;
                     var scale = MAX_WIDTH / img.width;
                     
@@ -200,7 +216,7 @@
                         imgElement.src = URL.createObjectURL(blob);
                         imgElement.style.display = 'block';
 
-                        document.getElementById('link-foto-hidden').value = "⏳ Mengunggah ke Cloudinary...";
+                        document.getElementById('link-foto-hidden').value = "⏳ Mengunggah foto...";
 
                         var formData = new FormData();
                         formData.append('file', blob);
@@ -215,11 +231,11 @@
                             if (data && data.secure_url) {
                                 document.getElementById('link-foto-hidden').value = data.secure_url;
                             } else {
-                                document.getElementById('link-foto-hidden').value = "Gagal memproses gambar";
+                                document.getElementById('link-foto-hidden').value = "Gagal memproses link gambar";
                             }
                         })
                         .catch(err => {
-                            document.getElementById('link-foto-hidden').value = "Gagal upload: Masalah Jaringan";
+                            document.getElementById('link-foto-hidden').value = "Koneksi upload terputus";
                         });
                     }, 'image/jpeg', 0.8);
                 };
@@ -228,12 +244,11 @@
 
         document.getElementById('form-inspeksi').addEventListener('submit', function(e) {
             e.preventDefault();
-            
             var form = e.target;
             var currentPhotoVal = document.getElementById('link-foto-hidden').value;
 
             if(currentPhotoVal.includes("⏳") || currentPhotoVal === "") {
-                alert("Mohon tunggu sebentar, foto Anda sedang diproses!");
+                alert("Tunggu sebentar, foto sedang diunggah!");
                 return;
             }
 
@@ -243,7 +258,6 @@
 
             var formData = new FormData(form);
             var searchParams = new URLSearchParams();
-            
             for (var pair of formData.entries()) {
                 searchParams.append(pair[0], pair[1]);
             }
@@ -251,19 +265,17 @@
             fetch(form.action, {
                 method: 'POST',
                 body: searchParams,
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                }
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
             })
             .then(function() {
-                alert("✅ Sukses! Data & Foto Masuk Sempurna!");
+                alert("✅ DATA & FOTO TERSIMPAN SEMPURNA!");
                 form.reset();
                 document.getElementById('preview-foto').style.display = 'none';
                 btnSimpan.innerHTML = "💾 Simpan Data Inspeksi";
                 btnSimpan.disabled = false;
             })
             .catch(function(error) {
-                alert("❌ Terjadi masalah pengiriman data.");
+                alert("❌ Gagal mengirim ke Google Sheets.");
                 btnSimpan.innerHTML = "💾 Simpan Data Inspeksi";
                 btnSimpan.disabled = false;
             });
