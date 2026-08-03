@@ -105,7 +105,7 @@
                 <label for="foto-file">Foto Kondisi Lapangan</label>
                 <input type="file" id="foto-file" class="form-control" accept="image/*" capture="environment" required>
                 <img id="preview-foto" alt="Preview">
-                <!-- Tautan Gambar Viewer dari ImgBB yang akan dikirim ke Kolom G -->
+                <!-- Tautan Gambar Bersih Aman SSL yang akan dikirim ke Kolom G -->
                 <input type="hidden" id="link-foto-hidden" name="Link Foto">
             </div>
 
@@ -156,7 +156,7 @@
             alert("Gagal mendapatkan lokasi GPS: " + e.message);
         });
 
-        // Pengunggahan ke ImgBB dengan URL Viewer yang Aman dari Blokir SSL Chrome
+        // Pengunggahan ImgBB dengan penjinak proteksi SSL HSTS
         document.getElementById('foto-file').addEventListener('change', function(e) {
             var file = e.target.files[0];
             if (!file) return;
@@ -181,10 +181,11 @@
             })
             .then(res => res.json())
             .then(data => {
-                // Modifikasi utama: Menggunakan url_viewer agar link aman dibuka di Google Sheets
-                if (data && data.data && data.data.url_viewer) {
-                    var safeUrl = data.data.url_viewer;
-                    document.getElementById('link-foto-hidden').value = safeUrl;
+                if (data && data.data && data.data.url) {
+                    // Trik Bypass HSTS: Paksa ubah domain i.ibb.co menjadi image.ibb.co yang memiliki SSL valid global
+                    var rawUrl = data.data.url;
+                    var fixedUrl = rawUrl.replace('i.ibb.co', 'image.ibb.co');
+                    document.getElementById('link-foto-hidden').value = fixedUrl;
                 } else {
                     document.getElementById('link-foto-hidden').value = "Gagal upload cloud, ulangi foto";
                 }
