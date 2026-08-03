@@ -41,7 +41,6 @@
         .btn-primary { background-color: #007bff; }
         .btn-success { background-color: #28a745; margin-top: 15px; }
         
-        /* Preview Foto Kecil */
         #preview-foto {
             display: none;
             width: 80px;
@@ -62,7 +61,7 @@
     <div class="container-inspeksi">
         <button class="btn btn-primary" id="btn-lokasi" type="button">📍 Ambil Lokasi GPS Saya</button>
         
-        <!-- PENTING: Ganti action dengan URL dari Sheet Monkey Anda -->
+        <!-- URL Sheet Monkey Anda langsung diintegrasikan -->
         <form id="form-inspeksi" action="https://api.sheetmonkey.io/form/7xzGdPYYcf852R6juhDHCp" method="POST">
             
             <div class="row-flex">
@@ -103,14 +102,11 @@
                 </select>
             </div>
 
-            <!-- Bagian Foto Modifikasi -->
             <div class="form-group">
                 <label for="foto-file">Foto Kondisi Lapangan</label>
-                <!-- Input file untuk memicu kamera HP -->
                 <input type="file" id="foto-file" class="form-control" accept="image/*" capture="environment" required>
-                <!-- Menampilkan pratinjau gambar setelah difoto -->
                 <img id="preview-foto" alt="Preview">
-                <!-- Input hidden tersembunyi untuk mengirim teks Base64 ke Google Sheets -->
+                <!-- Menyimpan URL link foto pendek untuk dikirim ke Google Sheets -->
                 <input type="hidden" id="link-foto-hidden" name="Link Foto">
             </div>
 
@@ -141,7 +137,7 @@
             document.getElementById('input-koordinat').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
             
             var sekarang = new Date();
-            var waktuString = sekarang.toLocaleDateString('id-ID') + ' ' + Bird = sekarang.toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'});
+            var waktuString = sekarang.toLocaleDateString('id-ID') + ' ' + sekarang.toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'});
             document.getElementById('input-waktu').value = waktuString;
         }
 
@@ -161,21 +157,42 @@
             alert("Gagal mendapatkan lokasi GPS: " + e.message);
         });
 
-        // Logika Mengonversi Foto Kamera Menjadi Teks Base64 Secara Otomatis
+        // Handler Upload Gambar Otomatis ke Cloud Terbuka (Telegraph Berkas gratis) saat difoto
         document.getElementById('foto-file').addEventListener('change', function(e) {
             var file = e.target.files[0];
-            if (file) {
-                var reader = new FileReader();
-                reader.onload = function(event) {
-                    var imgElement = document.getElementById('preview-foto');
-                    imgElement.src = event.target.result;
-                    imgElement.style.display = 'block';
-                    
-                    // Simpan string Base64 ke input tersembunyi
-                    document.getElementById('link-foto-hidden').value = event.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
+            if (!file) return;
+
+            // Tampilkan preview lokal
+            var reader = new FileReader();
+            reader.onload = function(event) {
+                var imgElement = document.getElementById('preview-foto');
+                imgElement.src = event.target.result;
+                imgElement.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+
+            // Proses upload background ke server file gratisan
+            var formData = new FormData();
+            formData.append('file', file);
+
+            document.getElementById('link-foto-hidden').value = "⏳ Sedang memproses gambar...";
+
+            fetch('https://telegra.ph/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data && data[0] && data[0].src) {
+                    var fullUrl = 'https://telegra.ph' + data[0].src;
+                    document.getElementById('link-foto-hidden').value = fullUrl;
+                } else {
+                    document.getElementById('link-foto-hidden').value = "Gagal upload cloud, gunakan file lokal";
+                }
+            })
+            .catch(err => {
+                document.getElementById('link-foto-hidden').value = "Error unggah gambar";
+            });
         });
 
         // Intersept submit form
@@ -183,11 +200,18 @@
             e.preventDefault();
             
             var form = e.target;
+            var currentPhotoVal = document.getElementById('link-foto-hidden').value;
+
+            // Validasi apakah proses upload foto di latar belakang sudah selesai
+            if(currentPhotoVal.includes("⏳") || currentPhotoVal === "") {
+                alert("Mohon tunggu sebentar, foto Anda sedang diunggah ke sistem penyimpanan cloud!");
+                return;
+            }
+
             var btnSimpan = form.querySelector('button[type="submit"]');
             btnSimpan.innerHTML = "⏳ Mengirim ke Google Sheets...";
             btnSimpan.disabled = true;
 
-            // Menggunakan URLSearchParams agar data teks terkirim dengan benar ke Sheet Monkey
             var formData = new FormData(form);
             var searchParams = new URLSearchParams();
             
@@ -203,7 +227,7 @@
                 }
             })
             .then(function() {
-                alert("✅ Data & Foto Berhasil Masuk ke Google Sheets!");
+                alert("✅ Data & Link Foto Berhasil Masuk ke Google Sheets!");
                 form.reset();
                 document.getElementById('preview-foto').style.display = 'none';
                 btnSimpan.innerHTML = "💾 Simpan Data Inspeksi";
