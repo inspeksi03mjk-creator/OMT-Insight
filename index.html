@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OMT Insight - Peta & Inspeksi</title>
     <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <style>
         * { box-sizing: border-box; }
         body {
@@ -105,6 +105,7 @@
                 <label for="foto-file">Foto Kondisi Lapangan</label>
                 <input type="file" id="foto-file" class="form-control" accept="image/*" capture="environment" required>
                 <img id="preview-foto" alt="Preview">
+                <!-- Tautan Baru Menggunakan Cloudinary Secure URL -->
                 <input type="hidden" id="link-foto-hidden" name="Link Foto">
             </div>
 
@@ -155,12 +156,12 @@
             alert("Gagal mendapatkan lokasi GPS: " + e.message);
         });
 
-        // Proses Kompresi Gambar + Unggah Ringan Anti-Timeout
+        // Alur Unggah Menggunakan Cloudinary (Sertifikat SSL Premium Global)
         document.getElementById('foto-file').addEventListener('change', function(e) {
             var file = e.target.files[0];
             if (!file) return;
 
-            document.getElementById('link-foto-hidden').value = "⏳ Menghitung & Mengompresi Gambar...";
+            document.getElementById('link-foto-hidden').value = "⏳ Menyiapkan foto...";
 
             var reader = new FileReader();
             reader.readAsDataURL(file);
@@ -168,12 +169,10 @@
                 var img = new Image();
                 img.src = event.target.result;
                 img.onload = function() {
-                    // Membuat Canvas untuk Kompresi Skala Ukuran
                     var canvas = document.createElement('canvas');
                     var ctx = canvas.getContext('2d');
                     
-                    // Set Batas Resolusi Maksimal Lebar 1024px (Sangat cukup & tajam untuk laporan)
-                    var MAX_WIDTH = 1024;
+                    var MAX_WIDTH = 1000;
                     var scale = MAX_WIDTH / img.width;
                     
                     if (img.width > MAX_WIDTH) {
@@ -186,36 +185,35 @@
                     
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     
-                    // Konversi ke blob JPEG dengan kualitas 75% (Ukuran file turun drastis dari MB ke KB)
                     canvas.toBlob(function(blob) {
-                        // Tampilkan Preview
                         var imgElement = document.getElementById('preview-foto');
                         imgElement.src = URL.createObjectURL(blob);
                         imgElement.style.display = 'block';
 
-                        document.getElementById('link-foto-hidden').value = "⏳ Mengunggah file ringan ke cloud...";
+                        document.getElementById('link-foto-hidden').value = "⏳ Mengunggah aman ke Cloudinary...";
 
                         var formData = new FormData();
-                        var apiKey = '51c63b04e33a7dc126e33d1e4966e4b3'; 
-                        formData.append('image', blob, 'inspeksi.jpg');
+                        // Menggunakan cloud & preset resmi yang sudah dikonfigurasi aman
+                        formData.append('file', blob);
+                        formData.append('upload_preset', 'omt_insight'); 
 
-                        fetch('https://api.imgbb.com/1/upload?key=' + apiKey, {
+                        fetch('https://api.cloudinary.com/v1_1/dkgw78y4b/image/upload', {
                             method: 'POST',
                             body: formData
                         })
                         .then(res => res.json())
                         .then(data => {
-                            if (data && data.data && data.data.display_url) {
-                                // Tautan resmi resolusi tinggi & anti HSTS
-                                document.getElementById('link-foto-hidden').value = data.data.display_url;
+                            if (data && data.secure_url) {
+                                // Tautan dijamin https://res.cloudinary.com/... (Lolos Sensor Chrome/Operator)
+                                document.getElementById('link-foto-hidden').value = data.secure_url;
                             } else {
-                                document.getElementById('link-foto-hidden').value = "Gagal memproses link cloud";
+                                document.getElementById('link-foto-hidden').value = "Gagal memproses gambar";
                             }
                         })
                         .catch(err => {
-                            document.getElementById('link-foto-hidden').value = "Error jaringan server gambar";
+                            document.getElementById('link-foto-hidden').value = "Gagal upload: Masalah Jaringan";
                         });
-                    }, 'image/jpeg', 0.75);
+                    }, 'image/jpeg', 0.8);
                 };
             };
         });
@@ -227,7 +225,7 @@
             var currentPhotoVal = document.getElementById('link-foto-hidden').value;
 
             if(currentPhotoVal.includes("⏳") || currentPhotoVal === "") {
-                alert("Mohon tunggu sebentar, foto Anda sedang dikompresi & diunggah!");
+                alert("Mohon tunggu sebentar, foto Anda sedang diproses!");
                 return;
             }
 
@@ -250,7 +248,7 @@
                 }
             })
             .then(function() {
-                alert("✅ Sukses! Data & Foto Masuk Sempurna!");
+                alert("✅ SELESAI! Data & Foto Masuk Sempurna!");
                 form.reset();
                 document.getElementById('preview-foto').style.display = 'none';
                 btnSimpan.innerHTML = "💾 Simpan Data Inspeksi";
