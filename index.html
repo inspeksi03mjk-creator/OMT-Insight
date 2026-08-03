@@ -61,7 +61,6 @@
     <div class="container-inspeksi">
         <button class="btn btn-primary" id="btn-lokasi" type="button">📍 Ambil Lokasi GPS Saya</button>
         
-        <!-- Form Integrasi Sheet Monkey -->
         <form id="form-inspeksi" action="https://api.sheetmonkey.io/form/7xzGdPYYcf852R6juhDHCp" method="POST">
             
             <div class="row-flex">
@@ -106,7 +105,7 @@
                 <label for="foto-file">Foto Kondisi Lapangan</label>
                 <input type="file" id="foto-file" class="form-control" accept="image/*" capture="environment" required>
                 <img id="preview-foto" alt="Preview">
-                <!-- Tautan Gambar dari ImgBB yang akan dikirim ke Kolom G -->
+                <!-- Tautan Gambar Viewer dari ImgBB yang akan dikirim ke Kolom G -->
                 <input type="hidden" id="link-foto-hidden" name="Link Foto">
             </div>
 
@@ -118,7 +117,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
     <script>
-        // Inisialisasi Peta
         var map = L.map('map').setView([-7.46, 112.42], 14);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -158,12 +156,11 @@
             alert("Gagal mendapatkan lokasi GPS: " + e.message);
         });
 
-        // Alur Unggah Foto Langsung Menggunakan Jalur API ImgBB Resmi Anda
+        // Pengunggahan ke ImgBB dengan URL Viewer yang Aman dari Blokir SSL Chrome
         document.getElementById('foto-file').addEventListener('change', function(e) {
             var file = e.target.files[0];
             if (!file) return;
 
-            // Tampilkan preview lokal
             var reader = new FileReader();
             reader.onload = function(event) {
                 var imgElement = document.getElementById('preview-foto');
@@ -172,7 +169,6 @@
             };
             reader.readAsDataURL(file);
 
-            // Pengiriman ke ImgBB
             var formData = new FormData();
             var apiKey = '51c63b04e33a7dc126e33d1e4966e4b3'; 
             formData.append('image', file);
@@ -185,9 +181,10 @@
             })
             .then(res => res.json())
             .then(data => {
-                if (data && data.data && data.data.url) {
-                    var fullUrl = data.data.url;
-                    document.getElementById('link-foto-hidden').value = fullUrl;
+                // Modifikasi utama: Menggunakan url_viewer agar link aman dibuka di Google Sheets
+                if (data && data.data && data.data.url_viewer) {
+                    var safeUrl = data.data.url_viewer;
+                    document.getElementById('link-foto-hidden').value = safeUrl;
                 } else {
                     document.getElementById('link-foto-hidden').value = "Gagal upload cloud, ulangi foto";
                 }
@@ -197,14 +194,12 @@
             });
         });
 
-        // Validasi dan Submit Form Akhir
         document.getElementById('form-inspeksi').addEventListener('submit', function(e) {
             e.preventDefault();
             
             var form = e.target;
             var currentPhotoVal = document.getElementById('link-foto-hidden').value;
 
-            // Mencegah kirim data jika gambar belum selesai terunggah
             if(currentPhotoVal.includes("⏳") || currentPhotoVal === "") {
                 alert("Mohon tunggu sebentar, foto Anda sedang diunggah ke ImgBB!");
                 return;
