@@ -9,7 +9,6 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        /* Reset & Base */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: Arial, sans-serif;
@@ -78,7 +77,7 @@
             margin-bottom: 15px;
             transition: all 0.3s;
         }
-        .btn:hover {
+        .btn:hover:not(:disabled) {
             opacity: 0.9;
             transform: translateY(-1px);
         }
@@ -91,6 +90,7 @@
         .btn-primary { background-color: #007bff; }
         .btn-success { background-color: #28a745; }
         .btn-danger { background-color: #dc3545; }
+        .btn-warning { background-color: #ffc107; color: #333; }
         
         #preview-foto {
             display: none; 
@@ -118,6 +118,11 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
         .alert-info {
             background-color: #d1ecf1;
             color: #0c5460;
@@ -143,6 +148,23 @@
             font-size: 12px;
             color: #666;
             margin-top: 5px;
+        }
+        
+        .upload-progress {
+            width: 100%;
+            height: 4px;
+            background-color: #f0f0f0;
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+            display: none;
+        }
+        .upload-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #007bff, #28a745);
+            width: 0%;
+            transition: width 0.3s;
+            border-radius: 2px;
         }
         
         @media (max-width: 480px) {
@@ -209,11 +231,16 @@
                 <label for="foto-file">Foto Kondisi Lapangan <span style="color:red;">*</span></label>
                 <input type="file" id="foto-file" class="form-control" accept="image/*" capture="environment" required>
                 <img id="preview-foto" alt="Preview Foto">
-                <input type="hidden" id="link-foto-hidden" name="Link Foto">
+                <div class="upload-progress" id="upload-progress">
+                    <div class="upload-progress-bar" id="upload-progress-bar"></div>
+                </div>
                 <div id="upload-status" class="status-text"></div>
+                <input type="hidden" id="link-foto-hidden" name="Link Foto">
+                <!-- Backup: jika upload gagal, simpan base64 sebagai cadangan -->
+                <input type="hidden" id="foto-base64" name="FOTO_BASE64">
             </div>
 
-            <button type="submit" class="btn btn-success" id="btn-submit">
+            <button type="submit" class="btn btn-success" id="btn-submit" disabled>
                 💾 Simpan Data Inspeksi
             </button>
         </form>
@@ -234,7 +261,6 @@
                 attribution: '© OpenStreetMap'
             }).addTo(map);
             
-            // Force resize peta
             setTimeout(function() {
                 map.invalidateSize();
             }, 100);
@@ -244,6 +270,9 @@
             var currentLat = null;
             var currentLng = null;
             var isUploading = false;
+            var uploadRetries = 0;
+            var maxRetries = 3;
+            var fotoBase64Data = null;
             
             // ========== ELEMEN DOM ==========
             var form = document.getElementById('form-inspeksi');
@@ -254,7 +283,10 @@
             var inputFoto = document.getElementById('foto-file');
             var previewFoto = document.getElementById('preview-foto');
             var linkFotoHidden = document.getElementById('link-foto-hidden');
+            var fotoBase64Hidden = document.getElementById('foto-base64');
             var uploadStatus = document.getElementById('upload-status');
+            var uploadProgress = document.getElementById('upload-progress');
+            var uploadProgressBar = document.getElementById('upload-progress-bar');
             var alertMessage = document.getElementById('alert-message');
             
             // ========== FUNGSI UTILITY ==========
@@ -263,7 +295,6 @@
                 alertMessage.textContent = message;
                 alertMessage.style.display = 'block';
                 
-                // Auto hide setelah 5 detik
                 clearTimeout(alertMessage._timeout);
                 alertMessage._timeout = setTimeout(function() {
                     alertMessage.style.display = 'none';
@@ -298,7 +329,6 @@
                 inputKoordinat.value = lat.toFixed(6) + ', ' + lng.toFixed(6);
                 inputWaktu.value = getCurrentTime();
                 
-                // Enable submit jika semua field terisi
                 validateForm();
             }
             
@@ -309,6 +339,7 @@
                 var kondisi = document.getElementById('kondisi').value;
                 var koordinat = inputKoordinat.value.trim();
                 var fotoUrl = linkFotoHidden.value;
+                var fotoBase64 = fotoBase64Hidden.value;
                 
                 var isValid = noTiang !== '' && 
                              penyulang !== '' && 
@@ -316,12 +347,79 @@
                              kondisi !== '' && 
                              koordinat !== '' && 
                              koordinat !== 'Klik peta / GPS' &&
-                             fotoUrl !== '' && 
+                             (fotoUrl !== '' || fotoBase64 !== '') &&
                              !fotoUrl.includes('⏳') &&
                              !fotoUrl.includes('Gagal');
                 
-                btnSubmit.disabled = !isValid;
+                btnSubmit.disabled = !isValid || isUploading;
                 return isValid;
+            }
+            
+            // ========== UPLOAD FOTO KE CLOUDINARY ==========
+            function uploadToCloudinary(blob, retryCount = 0) {
+                return new Promise(function(resolve, reject) {
+                    var formData = new FormData();
+                    formData.append('file', blob);
+                    formData.append('upload_preset', 'omt_insight');
+                    
+                    // Tampilkan progress
+                    uploadProgress.style.display = 'block';
+                    uploadProgressBar.style.width = '0%';
+                    
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', 'https://api.cloudinary.com/v1_1/dkgw78y4b/image/upload');
+                    
+                    xhr.upload.onprogress = function(e) {
+                        if (e.lengthComputable) {
+                            var percent = (e.loaded / e.total) * 100;
+                            uploadProgressBar.style.width = percent + '%';
+                        }
+                    };
+                    
+                    xhr.onload = function() {
+                        uploadProgress.style.display = 'none';
+                        if (xhr.status === 200) {
+                            try {
+                                var data = JSON.parse(xhr.responseText);
+                                if (data && data.secure_url) {
+                                    resolve(data.secure_url);
+                                } else {
+                                    reject(new Error('URL tidak valid'));
+                                }
+                            } catch (e) {
+                                reject(new Error('Response tidak valid'));
+                            }
+                        } else {
+                            // Coba retry jika masih ada kesempatan
+                            if (retryCount < maxRetries) {
+                                uploadStatus.textContent = '⏳ Mencoba ulang upload... (' + (retryCount + 1) + '/' + maxRetries + ')';
+                                setTimeout(function() {
+                                    uploadToCloudinary(blob, retryCount + 1)
+                                        .then(resolve)
+                                        .catch(reject);
+                                }, 2000);
+                            } else {
+                                reject(new Error('Upload gagal: ' + xhr.status));
+                            }
+                        }
+                    };
+                    
+                    xhr.onerror = function() {
+                        uploadProgress.style.display = 'none';
+                        if (retryCount < maxRetries) {
+                            uploadStatus.textContent = '⏳ Mencoba ulang upload... (' + (retryCount + 1) + '/' + maxRetries + ')';
+                            setTimeout(function() {
+                                uploadToCloudinary(blob, retryCount + 1)
+                                    .then(resolve)
+                                    .catch(reject);
+                            }, 2000);
+                        } else {
+                            reject(new Error('Koneksi gagal'));
+                        }
+                    };
+                    
+                    xhr.send(formData);
+                });
             }
             
             // ========== EVENT: KLIK PETA ==========
@@ -387,7 +485,8 @@
                 }
                 
                 isUploading = true;
-                uploadStatus.textContent = '⏳ Mengunggah foto...';
+                uploadRetries = 0;
+                uploadStatus.textContent = '⏳ Memproses foto...';
                 linkFotoHidden.value = '⏳ Mengunggah foto...';
                 btnSubmit.disabled = true;
                 
@@ -408,48 +507,41 @@
                         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                         
                         canvas.toBlob(function(blob) {
+                            // Simpan base64 sebagai backup
+                            fotoBase64Data = canvas.toDataURL('image/jpeg', 0.8);
+                            fotoBase64Hidden.value = fotoBase64Data;
+                            
                             // Tampilkan preview
                             previewFoto.src = URL.createObjectURL(blob);
                             previewFoto.style.display = 'block';
                             
-                            // Upload ke Cloudinary
-                            var formData = new FormData();
-                            formData.append('file', blob);
-                            formData.append('upload_preset', 'omt_insight');
+                            uploadStatus.textContent = '⏳ Mengunggah ke Cloudinary...';
                             
-                            fetch('https://api.cloudinary.com/v1_1/dkgw78y4b/image/upload', {
-                                method: 'POST',
-                                body: formData
-                            })
-                            .then(function(res) {
-                                if (!res.ok) throw new Error('Upload gagal');
-                                return res.json();
-                            })
-                            .then(function(data) {
-                                if (data && data.secure_url) {
-                                    linkFotoHidden.value = data.secure_url;
-                                    uploadStatus.textContent = '✅ Foto berhasil diunggah';
+                            // Upload ke Cloudinary
+                            uploadToCloudinary(blob, 0)
+                                .then(function(url) {
+                                    linkFotoHidden.value = url;
+                                    uploadStatus.textContent = '✅ Foto berhasil diunggah ke Cloudinary';
                                     showAlert('Foto berhasil diunggah!', 'success');
-                                } else {
-                                    throw new Error('URL tidak valid');
-                                }
-                            })
-                            .catch(function(err) {
-                                console.error('Upload error:', err);
-                                linkFotoHidden.value = '';
-                                uploadStatus.textContent = '❌ Gagal mengunggah foto';
-                                showAlert('Gagal mengunggah foto ke Cloudinary', 'danger');
-                            })
-                            .finally(function() {
-                                isUploading = false;
-                                validateForm();
-                            });
+                                    isUploading = false;
+                                    validateForm();
+                                })
+                                .catch(function(err) {
+                                    console.error('Upload error:', err);
+                                    // Jika Cloudinary gagal, gunakan base64 sebagai fallback
+                                    linkFotoHidden.value = '';
+                                    uploadStatus.textContent = '⚠️ Cloudinary gagal, menggunakan base64 sebagai backup';
+                                    showAlert('Upload ke Cloudinary gagal, menggunakan backup base64', 'warning');
+                                    isUploading = false;
+                                    validateForm();
+                                });
                         }, 'image/jpeg', 0.8);
                     };
                 };
                 reader.onerror = function() {
                     showAlert('Gagal membaca file', 'danger');
                     isUploading = false;
+                    uploadStatus.textContent = '❌ Gagal memproses foto';
                 };
             });
             
@@ -463,26 +555,31 @@
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 
-                // Validasi final
                 if (!validateForm()) {
                     showAlert('Mohon lengkapi semua data!', 'danger');
                     return;
                 }
                 
                 if (isUploading) {
-                    showAlert('Tunggu hingga foto selesai diunggah', 'warning');
+                    showAlert('Tunggu hingga foto selesai diproses', 'warning');
                     return;
                 }
                 
-                // Disable button
                 btnSubmit.disabled = true;
                 btnSubmit.innerHTML = '⏳ Mengirim data...';
                 
-                // Siapkan data
                 var formData = new FormData(form);
                 var searchParams = new URLSearchParams();
+                
+                // Tambahkan semua data
                 for (var pair of formData.entries()) {
-                    if (pair[0] !== 'Link Foto' || pair[1]) {
+                    if (pair[0] === 'Link Foto' && !pair[1]) {
+                        // Jika link foto kosong, gunakan base64
+                        var base64Data = fotoBase64Hidden.value;
+                        if (base64Data) {
+                            searchParams.append('Link Foto', base64Data);
+                        }
+                    } else if (pair[0] !== 'FOTO_BASE64') {
                         searchParams.append(pair[0], pair[1]);
                     }
                 }
@@ -505,7 +602,11 @@
                     previewFoto.style.display = 'none';
                     previewFoto.src = '';
                     linkFotoHidden.value = '';
+                    fotoBase64Hidden.value = '';
+                    fotoBase64Data = null;
                     uploadStatus.textContent = '';
+                    uploadProgress.style.display = 'none';
+                    uploadProgressBar.style.width = '0%';
                     inputKoordinat.value = '';
                     inputWaktu.value = '';
                     if (marker) {
@@ -514,6 +615,7 @@
                     }
                     btnSubmit.disabled = true;
                     btnSubmit.innerHTML = '💾 Simpan Data Inspeksi';
+                    showAlert('Data berhasil disimpan!', 'success');
                 })
                 .catch(function(error) {
                     console.error('Submit error:', error);
@@ -524,10 +626,7 @@
             });
             
             // ========== INISIALISASI AWAL ==========
-            // Set waktu otomatis
             inputWaktu.value = getCurrentTime();
-            
-            // Validasi awal
             validateForm();
             
             console.log('✅ OMT Insight berhasil dimuat!');
