@@ -105,7 +105,6 @@
                 <label for="foto-file">Foto Kondisi Lapangan</label>
                 <input type="file" id="foto-file" class="form-control" accept="image/*" capture="environment" required>
                 <img id="preview-foto" alt="Preview">
-                <!-- Tautan Gambar Bersih Aman SSL & Valid yang akan dikirim ke Kolom G -->
                 <input type="hidden" id="link-foto-hidden" name="Link Foto">
             </div>
 
@@ -156,41 +155,69 @@
             alert("Gagal mendapatkan lokasi GPS: " + e.message);
         });
 
-        // Alur Pengunggahan Gambar Menggunakan Properti display_url Resmi
+        // Proses Kompresi Gambar + Unggah Ringan Anti-Timeout
         document.getElementById('foto-file').addEventListener('change', function(e) {
             var file = e.target.files[0];
             if (!file) return;
 
+            document.getElementById('link-foto-hidden').value = "⏳ Menghitung & Mengompresi Gambar...";
+
             var reader = new FileReader();
-            reader.onload = function(event) {
-                var imgElement = document.getElementById('preview-foto');
-                imgElement.src = event.target.result;
-                imgElement.style.display = 'block';
-            };
             reader.readAsDataURL(file);
+            reader.onload = function(event) {
+                var img = new Image();
+                img.src = event.target.result;
+                img.onload = function() {
+                    // Membuat Canvas untuk Kompresi Skala Ukuran
+                    var canvas = document.createElement('canvas');
+                    var ctx = canvas.getContext('2d');
+                    
+                    // Set Batas Resolusi Maksimal Lebar 1024px (Sangat cukup & tajam untuk laporan)
+                    var MAX_WIDTH = 1024;
+                    var scale = MAX_WIDTH / img.width;
+                    
+                    if (img.width > MAX_WIDTH) {
+                        canvas.width = MAX_WIDTH;
+                        canvas.height = img.height * scale;
+                    } else {
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                    }
+                    
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    // Konversi ke blob JPEG dengan kualitas 75% (Ukuran file turun drastis dari MB ke KB)
+                    canvas.toBlob(function(blob) {
+                        // Tampilkan Preview
+                        var imgElement = document.getElementById('preview-foto');
+                        imgElement.src = URL.createObjectURL(blob);
+                        imgElement.style.display = 'block';
 
-            var formData = new FormData();
-            var apiKey = '51c63b04e33a7dc126e33d1e4966e4b3'; 
-            formData.append('image', file);
+                        document.getElementById('link-foto-hidden').value = "⏳ Mengunggah file ringan ke cloud...";
 
-            document.getElementById('link-foto-hidden').value = "⏳ Sedang memproses gambar ke Cloud...";
+                        var formData = new FormData();
+                        var apiKey = '51c63b04e33a7dc126e33d1e4966e4b3'; 
+                        formData.append('image', blob, 'inspeksi.jpg');
 
-            fetch('https://api.imgbb.com/1/upload?key=' + apiKey, {
-                method: 'POST',
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                // Menggunakan display_url: Tautan langsung resolusi tinggi, aman dari HSTS, & bebas 404
-                if (data && data.data && data.data.display_url) {
-                    document.getElementById('link-foto-hidden').value = data.data.display_url;
-                } else {
-                    document.getElementById('link-foto-hidden').value = "Gagal upload cloud, ulangi foto";
-                }
-            })
-            .catch(err => {
-                document.getElementById('link-foto-hidden').value = "Error koneksi server gambar";
-            });
+                        fetch('https://api.imgbb.com/1/upload?key=' + apiKey, {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data && data.data && data.data.display_url) {
+                                // Tautan resmi resolusi tinggi & anti HSTS
+                                document.getElementById('link-foto-hidden').value = data.data.display_url;
+                            } else {
+                                document.getElementById('link-foto-hidden').value = "Gagal memproses link cloud";
+                            }
+                        })
+                        .catch(err => {
+                            document.getElementById('link-foto-hidden').value = "Error jaringan server gambar";
+                        });
+                    }, 'image/jpeg', 0.75);
+                };
+            };
         });
 
         document.getElementById('form-inspeksi').addEventListener('submit', function(e) {
@@ -200,7 +227,7 @@
             var currentPhotoVal = document.getElementById('link-foto-hidden').value;
 
             if(currentPhotoVal.includes("⏳") || currentPhotoVal === "") {
-                alert("Mohon tunggu sebentar, foto Anda sedang diunggah ke ImgBB!");
+                alert("Mohon tunggu sebentar, foto Anda sedang dikompresi & diunggah!");
                 return;
             }
 
@@ -223,7 +250,7 @@
                 }
             })
             .then(function() {
-                alert("✅ Data & Tautan Foto Berhasil Masuk ke Google Sheets!");
+                alert("✅ Sukses! Data & Foto Masuk Sempurna!");
                 form.reset();
                 document.getElementById('preview-foto').style.display = 'none';
                 btnSimpan.innerHTML = "💾 Simpan Data Inspeksi";
