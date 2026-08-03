@@ -25,6 +25,7 @@ h2{
 <body>
 
 <h2>OMT Insight - Peta Inspeksi</h2>
+    <button onclick="lokasiSaya()">📍 Lokasi Saya</button>
 
 <div id="map"></div>
 
@@ -41,6 +42,29 @@ map.on('click',function(e){
 L.marker(e.latlng).addTo(map)
 .bindPopup("Titik Inspeksi")
 .openPopup();
+    function lokasiSaya(){
+
+if(!navigator.geolocation){
+alert("GPS tidak didukung");
+return;
+}
+
+navigator.geolocation.getCurrentPosition(function(pos){
+
+var lat=pos.coords.latitude;
+var lng=pos.coords.longitude;
+
+map.setView([lat,lng],18);
+
+L.marker([lat,lng]).addTo(map)
+.bindPopup("📍 Saya di sini")
+.openPopup();
+
+},function(err){
+alert("GPS gagal : "+err.message);
+});
+
+    }
 });
 </script>
 
