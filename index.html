@@ -3,106 +3,206 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OMT Insight - Peta Inspeksi</title>
+    <title>OMT Insight - Peta & Inspeksi</title>
     <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             margin: 0;
             padding: 0;
             font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
         }
         #map {
-            height: 70vh;
+            height: 45vh; /* Peta mengambil 45% layar atas di HP */
             width: 100%;
         }
-        .control-panel {
+        .container-inspeksi {
+            flex: 1;
             padding: 15px;
-            background: #f8f9fa;
-            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            background: #ffffff;
+            box-shadow: 0 -3px 10px rgba(0,0,0,0.1);
+            overflow-y: auto; /* Formulir bisa di-scroll jika panjang */
+        }
+        .form-group {
+            margin-bottom: 12px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .form-control:disabled {
+            background-color: #e9ecef;
+            color: #495057;
+        }
+        .row-flex {
+            display: flex;
+            gap: 10px;
+        }
+        .row-flex .form-group {
+            flex: 1;
         }
         .btn {
-            background-color: #007bff;
             color: white;
             border: none;
-            padding: 10px 15px;
+            padding: 12px;
             border-radius: 5px;
             cursor: pointer;
             font-size: 14px;
             font-weight: bold;
             width: 100%;
             margin-bottom: 10px;
+            display: block;
+            text-align: center;
         }
-        .btn:hover {
-            background-color: #0056b3;
-        }
-        .info-box {
-            font-size: 13px;
-            color: #333;
-            background: #fff;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
+        .btn-primary { background-color: #007bff; }
+        .btn-primary:hover { background-color: #0056b3; }
+        .btn-success { background-color: #28a745; margin-top: 15px; }
+        .btn-success:hover { background-color: #218838; }
     </style>
 </head>
 <body>
 
+    <!-- 1. Area Peta -->
     <div id="map"></div>
     
-    <div class="control-panel">
-        <button class="btn" id="btn-lokasi">📍 Lokasi Saya</button>
-        <div class="info-box" id="info-koordinat">
-            <strong>Koordinat terpilih:</strong> Klik pada peta atau tekan tombol lokasi.
-        </div>
+    <!-- 2. Area Formulir Inspeksi -->
+    <div class="container-inspeksi">
+        <button class="btn btn-primary" id="btn-lokasi">📍 Ambil Lokasi GPS Saya</button>
+        
+        <form id="form-inspeksi">
+            <!-- Otomatisasi Waktu & Koordinat -->
+            <div class="row-flex">
+                <div class="form-group">
+                    <label>Tanggal & Jam</label>
+                    <input type="text" id="input-waktu" class="form-control" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Koordinat (Lat, Lng)</label>
+                    <input type="text" id="input-koordinat" class="form-control" placeholder="Klik peta / GPS" readonly required>
+                </div>
+            </div>
+
+            <!-- Data Teknis -->
+            <div class="form-group">
+                <label for="no-tiang">Nomor Tiang</label>
+                <input type="text" id="no-tiang" class="form-control" placeholder="Contoh: T.OMT-04" required>
+            </div>
+
+            <div class="row-flex">
+                <div class="form-group">
+                    <label for="penyulang">Penyulang</label>
+                    <input type="text" id="penyulang" class="form-control" placeholder="Nama Penyulang" required>
+                </div>
+                <div class="form-group">
+                    <label for="gardu">Gardu</label>
+                    <input type="text" id="gardu" class="form-control" placeholder="Nama Gardu" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="kondisi">Kondisi Tiang/Fasilitas</label>
+                <select id="kondisi" class="form-control" required>
+                    <option value="">-- Pilih Kondisi --</option>
+                    <option value="Aman / Normal">Aman / Normal</option>
+                    <option value="Tersentuh Pohon">Tersentuh Pohon (Perlu Perintisan)</option>
+                    <option value="Retak / Miring">Tiang Retak / Miring</option>
+                    <option value="Isolator Rusak">Isolator Rusak/Flash</option>
+                    <option value="Lainnya">Lainnya (Tulis di Catatan)</option>
+                </select>
+            </div>
+
+            <!-- Upload Foto Media langsung Kamera HP -->
+            <div class="form-group">
+                <label for="foto">Foto Kondisi Lapangan</label>
+                <input type="file" id="foto" class="form-control" accept="image/*" capture="environment" required>
+            </div>
+
+            <button type="submit" class="btn btn-success">💾 Simpan Data Inspeksi</button>
+        </form>
     </div>
 
     <!-- Leaflet JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
     <script>
-        // Inisialisasi peta ke default Jatim / Lamongan sementara
+        // Inisialisasi peta awal
         var map = L.map('map').setView([-7.12, 112.41], 13);
 
-        // Tambahkan layer OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        // Marker tunggal
         var marker;
 
-        // Fungsi untuk menaruh atau memindahkan marker
-        function updateMarker(lat, lng) {
+        // Fungsi memperbarui marker, kolom koordinat, dan waktu otomatis
+        function updateMarkerAndForm(lat, lng) {
             if (marker) {
                 marker.setLatLng([lat, lng]);
             } else {
                 marker = L.marker([lat, lng]).addTo(map);
             }
             map.setView([lat, lng], 16);
-            document.getElementById('info-koordinat').innerHTML = `<strong>Koordinat:</strong> Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+            
+            // Masukkan data ke input form
+            document.getElementById('input-koordinat').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            
+            // Update Jam & Tanggal Otomatis saat titik diambil
+            var sekarang = new Date();
+            var waktuString = sekarang.toLocaleDateString('id-ID') + ' ' + sekarang.toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'});
+            document.getElementById('input-waktu').value = waktuString;
         }
 
-        // Event klik manual di peta
+        // Klik Manual di Peta
         map.on('click', function(e) {
-            updateMarker(e.latlng.lat, e.latlng.lng);
+            updateMarkerAndForm(e.latlng.lat, e.latlng.lng);
         });
 
-        // Logika Tombol Lokasi Saya
+        // Tombol Ambil GPS
         document.getElementById('btn-lokasi').addEventListener('click', function() {
-            // Menggunakan deteksi lokasi bawaan Leaflet
             map.locate({setView: true, maxZoom: 16});
         });
 
-        // Event ketika lokasi berhasil ditemukan oleh Leaflet
         map.on('locationfound', function(e) {
-            updateMarker(e.latlng.lat, e.latlng.lng);
+            updateMarkerAndForm(e.latlng.lat, e.latlng.lng);
         });
 
-        // Event jika lokasi gagal ditemukan
         map.on('locationerror', function(e) {
-            alert("Gagal mendapatkan lokasi: " + e.message);
+            alert("Gagal mendapatkan lokasi GPS: " + e.message);
+        });
+
+        // Event Handling saat Form di Simpan (Submit)
+        document.getElementById('form-inspeksi').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Mengambil semua value input
+            var koordinat = document.getElementById('input-koordinat').value;
+            var waktu = document.getElementById('input-waktu').value;
+            var noTiang = document.getElementById('no-tiang').value;
+            var penyulang = document.getElementById('penyulang').value;
+            var gardu = document.getElementById('gardu').value;
+            var kondisi = document.getElementById('kondisi').value;
+            
+            // Contoh notifikasi data berhasil ditangkap
+            alert(`Data Berhasil Tersimpan!\n\nTiang: ${noTiang}\nLokasi: ${koordinat}\nKondisi: ${kondisi}\nWaktu: ${waktu}`);
+            
+            // Di sini nanti kita bisa integrasikan ke Google Sheets atau server lokal
         });
     </script>
 </body>
