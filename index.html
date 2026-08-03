@@ -61,7 +61,7 @@
     <div class="container-inspeksi">
         <button class="btn btn-primary" id="btn-lokasi" type="button">📍 Ambil Lokasi GPS Saya</button>
         
-        <!-- Integrasi URL Sheet Monkey Anda -->
+        <!-- Form Integrasi Sheet Monkey -->
         <form id="form-inspeksi" action="https://api.sheetmonkey.io/form/7xzGdPYYcf852R6juhDHCp" method="POST">
             
             <div class="row-flex">
@@ -106,7 +106,7 @@
                 <label for="foto-file">Foto Kondisi Lapangan</label>
                 <input type="file" id="foto-file" class="form-control" accept="image/*" capture="environment" required>
                 <img id="preview-foto" alt="Preview">
-                <!-- Data Link Foto ImgBB yang dikirim ke Kolom G Google Sheets -->
+                <!-- Tautan Gambar dari ImgBB yang akan dikirim ke Kolom G -->
                 <input type="hidden" id="link-foto-hidden" name="Link Foto">
             </div>
 
@@ -118,7 +118,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
     <script>
-        // Inisialisasi posisi awal peta
+        // Inisialisasi Peta
         var map = L.map('map').setView([-7.46, 112.42], 14);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -142,12 +142,10 @@
             document.getElementById('input-waktu').value = waktuString;
         }
 
-        // Klik Manual di Peta
         map.on('click', function(e) {
             updateMarkerAndForm(e.latlng.lat, e.latlng.lng);
         });
 
-        // Deteksi Lokasi via Tombol GPS
         document.getElementById('btn-lokasi').addEventListener('click', function() {
             map.locate({setView: true, maxZoom: 16});
         });
@@ -160,12 +158,12 @@
             alert("Gagal mendapatkan lokasi GPS: " + e.message);
         });
 
-        // Proses Unggah Gambar Otomatis ke Cloud ImgBB saat Difoto
+        // Alur Unggah Foto Langsung Menggunakan Jalur API ImgBB Resmi Anda
         document.getElementById('foto-file').addEventListener('change', function(e) {
             var file = e.target.files[0];
             if (!file) return;
 
-            // Tampilkan preview lokal di HP
+            // Tampilkan preview lokal
             var reader = new FileReader();
             reader.onload = function(event) {
                 var imgElement = document.getElementById('preview-foto');
@@ -174,7 +172,7 @@
             };
             reader.readAsDataURL(file);
 
-            // Pengiriman gambar ke ImgBB API
+            // Pengiriman ke ImgBB
             var formData = new FormData();
             var apiKey = '51c63b04e33a7dc126e33d1e4966e4b3'; 
             formData.append('image', file);
@@ -191,7 +189,7 @@
                     var fullUrl = data.data.url;
                     document.getElementById('link-foto-hidden').value = fullUrl;
                 } else {
-                    document.getElementById('link-foto-hidden').value = "Gagal upload, coba foto ulang";
+                    document.getElementById('link-foto-hidden').value = "Gagal upload cloud, ulangi foto";
                 }
             })
             .catch(err => {
@@ -199,16 +197,16 @@
             });
         });
 
-        // Intersept Pengiriman Formulir Akhir
+        // Validasi dan Submit Form Akhir
         document.getElementById('form-inspeksi').addEventListener('submit', function(e) {
             e.preventDefault();
             
             var form = e.target;
             var currentPhotoVal = document.getElementById('link-foto-hidden').value;
 
-            // Cek status upload foto background
+            // Mencegah kirim data jika gambar belum selesai terunggah
             if(currentPhotoVal.includes("⏳") || currentPhotoVal === "") {
-                alert("Mohon tunggu sebentar, foto Anda sedang diunggah ke sistem cloud!");
+                alert("Mohon tunggu sebentar, foto Anda sedang diunggah ke ImgBB!");
                 return;
             }
 
@@ -231,7 +229,7 @@
                 }
             })
             .then(function() {
-                alert("✅ Data & Link Foto Berhasil Masuk ke Google Sheets!");
+                alert("✅ Data & Tautan Foto Berhasil Masuk ke Google Sheets!");
                 form.reset();
                 document.getElementById('preview-foto').style.display = 'none';
                 btnSimpan.innerHTML = "💾 Simpan Data Inspeksi";
