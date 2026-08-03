@@ -129,21 +129,6 @@
             border: 1px solid #bee5eb;
         }
         
-        .loading-spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid #f3f3f3;
-            border-top: 2px solid #007bff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-right: 8px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
         .status-text {
             font-size: 12px;
             color: #666;
@@ -221,9 +206,14 @@
                 <select id="kondisi" name="KONDISI" class="form-control" required>
                     <option value="">-- Pilih Kondisi --</option>
                     <option value="Aman / Normal">Aman / Normal</option>
-                    <option value="Tersentuh Pohon">Tersentuh Pohon (Perlu Perintisan)</option>
+                    <option value="Tersentuh Pohon (Perlu Perabasan)">Tersentuh Pohon (Perlu Perabasan)</option>
                     <option value="Retak / Miring">Tiang Retak / Miring</option>
                     <option value="Isolator Rusak">Isolator Rusak/Flash</option>
+                    <option value="Arrester Rusak">Arrester Rusak</option>
+                    <option value="Jumperan Perlu Pex">Jumperan Perlu Pex</option>
+                    <option value="Jumperan Hotspot">Jumperan Hotspot</option>
+                    <option value="Rawan Binatang">Rawan Binatang</option>
+                    <option value="Rawan Petir">Rawan Petir</option>
                 </select>
             </div>
 
@@ -236,7 +226,6 @@
                 </div>
                 <div id="upload-status" class="status-text"></div>
                 <input type="hidden" id="link-foto-hidden" name="Link Foto">
-                <!-- Backup: jika upload gagal, simpan base64 sebagai cadangan -->
                 <input type="hidden" id="foto-base64" name="FOTO_BASE64">
             </div>
 
@@ -270,8 +259,6 @@
             var currentLat = null;
             var currentLng = null;
             var isUploading = false;
-            var uploadRetries = 0;
-            var maxRetries = 3;
             var fotoBase64Data = null;
             
             // ========== ELEMEN DOM ==========
@@ -356,13 +343,12 @@
             }
             
             // ========== UPLOAD FOTO KE CLOUDINARY ==========
-            function uploadToCloudinary(blob, retryCount = 0) {
+            function uploadToCloudinary(blob) {
                 return new Promise(function(resolve, reject) {
                     var formData = new FormData();
                     formData.append('file', blob);
                     formData.append('upload_preset', 'omt_insight');
                     
-                    // Tampilkan progress
                     uploadProgress.style.display = 'block';
                     uploadProgressBar.style.width = '0%';
                     
@@ -390,32 +376,13 @@
                                 reject(new Error('Response tidak valid'));
                             }
                         } else {
-                            // Coba retry jika masih ada kesempatan
-                            if (retryCount < maxRetries) {
-                                uploadStatus.textContent = '⏳ Mencoba ulang upload... (' + (retryCount + 1) + '/' + maxRetries + ')';
-                                setTimeout(function() {
-                                    uploadToCloudinary(blob, retryCount + 1)
-                                        .then(resolve)
-                                        .catch(reject);
-                                }, 2000);
-                            } else {
-                                reject(new Error('Upload gagal: ' + xhr.status));
-                            }
+                            reject(new Error('Upload gagal: ' + xhr.status));
                         }
                     };
                     
                     xhr.onerror = function() {
                         uploadProgress.style.display = 'none';
-                        if (retryCount < maxRetries) {
-                            uploadStatus.textContent = '⏳ Mencoba ulang upload... (' + (retryCount + 1) + '/' + maxRetries + ')';
-                            setTimeout(function() {
-                                uploadToCloudinary(blob, retryCount + 1)
-                                    .then(resolve)
-                                    .catch(reject);
-                            }, 2000);
-                        } else {
-                            reject(new Error('Koneksi gagal'));
-                        }
+                        reject(new Error('Koneksi gagal'));
                     };
                     
                     xhr.send(formData);
@@ -485,8 +452,8 @@
                 }
                 
                 isUploading = true;
-                uploadRetries = 0;
                 uploadStatus.textContent = '⏳ Memproses foto...';
+                uploadStatus.style.color = '#666';
                 linkFotoHidden.value = '⏳ Mengunggah foto...';
                 btnSubmit.disabled = true;
                 
@@ -518,20 +485,22 @@
                             uploadStatus.textContent = '⏳ Mengunggah ke Cloudinary...';
                             
                             // Upload ke Cloudinary
-                            uploadToCloudinary(blob, 0)
+                            uploadToCloudinary(blob)
                                 .then(function(url) {
                                     linkFotoHidden.value = url;
-                                    uploadStatus.textContent = '✅ Foto berhasil diunggah ke Cloudinary';
+                                    uploadStatus.textContent = '✅ Foto berhasil diunggah';
+                                    uploadStatus.style.color = '#28a745';
                                     showAlert('Foto berhasil diunggah!', 'success');
                                     isUploading = false;
                                     validateForm();
                                 })
                                 .catch(function(err) {
                                     console.error('Upload error:', err);
-                                    // Jika Cloudinary gagal, gunakan base64 sebagai fallback
+                                    // Jika Cloudinary gagal, gunakan base64
                                     linkFotoHidden.value = '';
-                                    uploadStatus.textContent = '⚠️ Cloudinary gagal, menggunakan base64 sebagai backup';
-                                    showAlert('Upload ke Cloudinary gagal, menggunakan backup base64', 'warning');
+                                    uploadStatus.textContent = '⚠️ Menggunakan backup base64';
+                                    uploadStatus.style.color = '#856404';
+                                    showAlert('Cloudinary gagal, menggunakan backup lokal', 'warning');
                                     isUploading = false;
                                     validateForm();
                                 });
@@ -542,6 +511,7 @@
                     showAlert('Gagal membaca file', 'danger');
                     isUploading = false;
                     uploadStatus.textContent = '❌ Gagal memproses foto';
+                    uploadStatus.style.color = '#dc3545';
                 };
             });
             
@@ -615,7 +585,6 @@
                     }
                     btnSubmit.disabled = true;
                     btnSubmit.innerHTML = '💾 Simpan Data Inspeksi';
-                    showAlert('Data berhasil disimpan!', 'success');
                 })
                 .catch(function(error) {
                     console.error('Submit error:', error);
