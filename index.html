@@ -1,72 +1,109 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>OMT Insight</title>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-
-<style>
-body{
-    margin:0;
-    font-family:Arial,sans-serif;
-}
-h2{
-    text-align:center;
-}
-#map{
-    height:90vh;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OMT Insight - Peta Inspeksi</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            height: 70vh;
+            width: 100%;
+        }
+        .control-panel {
+            padding: 15px;
+            background: #f8f9fa;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .info-box {
+            font-size: 13px;
+            color: #333;
+            background: #fff;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
 </head>
-
 <body>
 
-<h2>OMT Insight - Peta Inspeksi</h2>
-    <button onclick="lokasiSaya()">📍 Lokasi Saya</button>
+    <div id="map"></div>
+    
+    <div class="control-panel">
+        <button class="btn" id="btn-lokasi">📍 Lokasi Saya</button>
+        <div class="info-box" id="info-koordinat">
+            <strong>Koordinat terpilih:</strong> Klik pada peta atau tekan tombol lokasi.
+        </div>
+    </div>
 
-<div id="map"></div>
+    <!-- Leaflet JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        // Inisialisasi peta ke default Jatim / Lamongan sementara
+        var map = L.map('map').setView([-7.12, 112.41], 13);
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+        // Tambahkan layer OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
 
-<script>
-var map=L.map('map').setView([-7.47,112.43],13);
+        // Marker tunggal
+        var marker;
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-maxZoom:19
-}).addTo(map);
+        // Fungsi untuk menaruh atau memindahkan marker
+        function updateMarker(lat, lng) {
+            if (marker) {
+                marker.setLatLng([lat, lng]);
+            } else {
+                marker = L.marker([lat, lng]).addTo(map);
+            }
+            map.setView([lat, lng], 16);
+            document.getElementById('info-koordinat').innerHTML = `<strong>Koordinat:</strong> Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+        }
 
-map.on('click',function(e){
-L.marker(e.latlng).addTo(map)
-.bindPopup("Titik Inspeksi")
-.openPopup();
-    function lokasiSaya(){
+        // Event klik manual di peta
+        map.on('click', function(e) {
+            updateMarker(e.latlng.lat, e.latlng.lng);
+        });
 
-if(!navigator.geolocation){
-alert("GPS tidak didukung");
-return;
-}
+        // Logika Tombol Lokasi Saya
+        document.getElementById('btn-lokasi').addEventListener('click', function() {
+            // Menggunakan deteksi lokasi bawaan Leaflet
+            map.locate({setView: true, maxZoom: 16});
+        });
 
-navigator.geolocation.getCurrentPosition(function(pos){
+        // Event ketika lokasi berhasil ditemukan oleh Leaflet
+        map.on('locationfound', function(e) {
+            updateMarker(e.latlng.lat, e.latlng.lng);
+        });
 
-var lat=pos.coords.latitude;
-var lng=pos.coords.longitude;
-
-map.setView([lat,lng],18);
-
-L.marker([lat,lng]).addTo(map)
-.bindPopup("📍 Saya di sini")
-.openPopup();
-
-},function(err){
-alert("GPS gagal : "+err.message);
-});
-
-    }
-});
-</script>
-
+        // Event jika lokasi gagal ditemukan
+        map.on('locationerror', function(e) {
+            alert("Gagal mendapatkan lokasi: " + e.message);
+        });
+    </script>
 </body>
 </html>
