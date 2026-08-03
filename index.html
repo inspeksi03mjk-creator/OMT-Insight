@@ -105,7 +105,7 @@
                 <label for="foto-file">Foto Kondisi Lapangan</label>
                 <input type="file" id="foto-file" class="form-control" accept="image/*" capture="environment" required>
                 <img id="preview-foto" alt="Preview">
-                <!-- Tautan Gambar Bersih Aman SSL yang akan dikirim ke Kolom G -->
+                <!-- Tautan Gambar Bersih Aman SSL & Valid yang akan dikirim ke Kolom G -->
                 <input type="hidden" id="link-foto-hidden" name="Link Foto">
             </div>
 
@@ -156,7 +156,7 @@
             alert("Gagal mendapatkan lokasi GPS: " + e.message);
         });
 
-        // Pengunggahan ImgBB dengan penjinak proteksi SSL HSTS
+        // Alur Pengunggahan Gambar Menggunakan Properti display_url Resmi
         document.getElementById('foto-file').addEventListener('change', function(e) {
             var file = e.target.files[0];
             if (!file) return;
@@ -181,11 +181,9 @@
             })
             .then(res => res.json())
             .then(data => {
-                if (data && data.data && data.data.url) {
-                    // Trik Bypass HSTS: Paksa ubah domain i.ibb.co menjadi image.ibb.co yang memiliki SSL valid global
-                    var rawUrl = data.data.url;
-                    var fixedUrl = rawUrl.replace('i.ibb.co', 'image.ibb.co');
-                    document.getElementById('link-foto-hidden').value = fixedUrl;
+                // Menggunakan display_url: Tautan langsung resolusi tinggi, aman dari HSTS, & bebas 404
+                if (data && data.data && data.data.display_url) {
+                    document.getElementById('link-foto-hidden').value = data.data.display_url;
                 } else {
                     document.getElementById('link-foto-hidden').value = "Gagal upload cloud, ulangi foto";
                 }
