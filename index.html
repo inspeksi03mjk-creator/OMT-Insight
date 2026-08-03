@@ -11,17 +11,23 @@
         body {
             margin: 0; padding: 0;
             font-family: Arial, sans-serif;
-            display: flex; flex-direction: column;
-            height: 100vh;
+            background-color: #f4f6f9;
         }
-        #map { height: 45vh; width: 100%; }
+        /* Mengunci area peta agar tidak tumpang tindih */
+        #map { 
+            height: 300px; 
+            width: 100%; 
+            position: relative;
+            z-index: 1;
+            border-bottom: 3px solid #007bff;
+        }
+        /* Area form yang mengalir normal ke bawah */
         .container-inspeksi {
-            flex: 1; padding: 15px;
-            background: #ffffff;
-            box-shadow: 0 -3px 10px rgba(0,0,0,0.1);
-            overflow-y: auto;
+            padding: 15px;
+            max-width: 600px;
+            margin: 0 auto 30px auto;
         }
-        .form-group { margin-bottom: 12px; }
+        .form-group { margin-bottom: 15px; }
         .form-group label {
             display: block; font-weight: bold;
             font-size: 13px; margin-bottom: 5px; color: #333;
@@ -29,17 +35,18 @@
         .form-control {
             width: 100%; padding: 10px;
             border: 1px solid #ccc; border-radius: 5px; font-size: 14px;
+            background-color: #fff;
         }
         .row-flex { display: flex; gap: 10px; }
         .row-flex .form-group { flex: 1; }
         .btn {
             color: white; border: none; padding: 12px;
             border-radius: 5px; cursor: pointer; font-size: 14px;
-            font-weight: bold; width: 100%; margin-bottom: 10px;
+            font-weight: bold; width: 100%; margin-bottom: 15px;
             display: block; text-align: center;
         }
         .btn-primary { background-color: #007bff; }
-        .btn-success { background-color: #28a745; margin-top: 15px; }
+        .btn-success { background-color: #28a745; margin-top: 10px; }
         
         #preview-foto {
             display: none;
@@ -54,7 +61,7 @@
 </head>
 <body>
 
-    <!-- 1. Area Peta -->
+    <!-- 1. Area Peta (Terkunci Sempurna) -->
     <div id="map"></div>
     
     <!-- 2. Area Formulir Inspeksi -->
@@ -105,7 +112,6 @@
                 <label for="foto-file">Foto Kondisi Lapangan</label>
                 <input type="file" id="foto-file" class="form-control" accept="image/*" capture="environment" required>
                 <img id="preview-foto" alt="Preview">
-                <!-- Tautan Baru Menggunakan Cloudinary Secure URL -->
                 <input type="hidden" id="link-foto-hidden" name="Link Foto">
             </div>
 
@@ -117,11 +123,15 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
     <script>
+        // Set awal peta di Mojokerto
         var map = L.map('map').setView([-7.46, 112.42], 14);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19, attribution: '© OpenStreetMap'
         }).addTo(map);
+
+        // Perbaikan Leaflet agar ubin peta dimuat ulang dengan benar
+        setTimeout(function(){ map.invalidateSize(); }, 500);
 
         var marker;
 
@@ -156,7 +166,7 @@
             alert("Gagal mendapatkan lokasi GPS: " + e.message);
         });
 
-        // Alur Unggah Menggunakan Cloudinary (Sertifikat SSL Premium Global)
+        // Alur Unggah Kompresi + Cloudinary Awan Aman
         document.getElementById('foto-file').addEventListener('change', function(e) {
             var file = e.target.files[0];
             if (!file) return;
@@ -190,10 +200,9 @@
                         imgElement.src = URL.createObjectURL(blob);
                         imgElement.style.display = 'block';
 
-                        document.getElementById('link-foto-hidden').value = "⏳ Mengunggah aman ke Cloudinary...";
+                        document.getElementById('link-foto-hidden').value = "⏳ Mengunggah ke Cloudinary...";
 
                         var formData = new FormData();
-                        // Menggunakan cloud & preset resmi yang sudah dikonfigurasi aman
                         formData.append('file', blob);
                         formData.append('upload_preset', 'omt_insight'); 
 
@@ -204,7 +213,6 @@
                         .then(res => res.json())
                         .then(data => {
                             if (data && data.secure_url) {
-                                // Tautan dijamin https://res.cloudinary.com/... (Lolos Sensor Chrome/Operator)
                                 document.getElementById('link-foto-hidden').value = data.secure_url;
                             } else {
                                 document.getElementById('link-foto-hidden').value = "Gagal memproses gambar";
@@ -230,7 +238,7 @@
             }
 
             var btnSimpan = form.querySelector('button[type="submit"]');
-            btnSimpan.innerHTML = "⏳ Mengirim ke Google Sheets...";
+            btnSimpan.innerHTML = "⏳ Mengirim data...";
             btnSimpan.disabled = true;
 
             var formData = new FormData(form);
@@ -248,7 +256,7 @@
                 }
             })
             .then(function() {
-                alert("✅ SELESAI! Data & Foto Masuk Sempurna!");
+                alert("✅ Sukses! Data & Foto Masuk Sempurna!");
                 form.reset();
                 document.getElementById('preview-foto').style.display = 'none';
                 btnSimpan.innerHTML = "💾 Simpan Data Inspeksi";
