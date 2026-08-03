@@ -134,6 +134,9 @@
             color: #666;
             margin-top: 5px;
         }
+        .status-success { color: #28a745; }
+        .status-warning { color: #856404; }
+        .status-error { color: #dc3545; }
         
         .upload-progress {
             width: 100%;
@@ -260,6 +263,7 @@
             var currentLng = null;
             var isUploading = false;
             var fotoBase64Data = null;
+            var isFotoReady = false;
             
             // ========== ELEMEN DOM ==========
             var form = document.getElementById('form-inspeksi');
@@ -325,18 +329,20 @@
                 var gardu = document.getElementById('gardu').value.trim();
                 var kondisi = document.getElementById('kondisi').value;
                 var koordinat = inputKoordinat.value.trim();
-                var fotoUrl = linkFotoHidden.value;
-                var fotoBase64 = fotoBase64Hidden.value;
+                
+                // Cek apakah foto sudah siap (baik dari Cloudinary atau base64)
+                var fotoReady = isFotoReady || 
+                               (linkFotoHidden.value && linkFotoHidden.value !== '' && !linkFotoHidden.value.includes('⏳')) ||
+                               (fotoBase64Hidden.value && fotoBase64Hidden.value !== '');
                 
                 var isValid = noTiang !== '' && 
                              penyulang !== '' && 
                              gardu !== '' && 
                              kondisi !== '' && 
+                             kondisi !== '-- Pilih Kondisi --' &&
                              koordinat !== '' && 
                              koordinat !== 'Klik peta / GPS' &&
-                             (fotoUrl !== '' || fotoBase64 !== '') &&
-                             !fotoUrl.includes('⏳') &&
-                             !fotoUrl.includes('Gagal');
+                             fotoReady;
                 
                 btnSubmit.disabled = !isValid || isUploading;
                 return isValid;
@@ -437,6 +443,12 @@
                 var file = e.target.files[0];
                 if (!file) return;
                 
+                // Reset status foto
+                isFotoReady = false;
+                linkFotoHidden.value = '';
+                fotoBase64Hidden.value = '';
+                fotoBase64Data = null;
+                
                 // Validasi ukuran file (max 5MB)
                 if (file.size > 5 * 1024 * 1024) {
                     showAlert('Ukuran file terlalu besar (maks 5MB)', 'danger');
@@ -453,8 +465,7 @@
                 
                 isUploading = true;
                 uploadStatus.textContent = '⏳ Memproses foto...';
-                uploadStatus.style.color = '#666';
-                linkFotoHidden.value = '⏳ Mengunggah foto...';
+                uploadStatus.className = 'status-text';
                 btnSubmit.disabled = true;
                 
                 var reader = new FileReader();
@@ -488,20 +499,23 @@
                             uploadToCloudinary(blob)
                                 .then(function(url) {
                                     linkFotoHidden.value = url;
-                                    uploadStatus.textContent = '✅ Foto berhasil diunggah';
-                                    uploadStatus.style.color = '#28a745';
-                                    showAlert('Foto berhasil diunggah!', 'success');
+                                    uploadStatus.textContent = '✅ Foto berhasil diunggah ke Cloudinary';
+                                    uploadStatus.className = 'status-text status-success';
+                                    isFotoReady = true;
                                     isUploading = false;
+                                    showAlert('Foto berhasil diunggah!', 'success');
                                     validateForm();
                                 })
                                 .catch(function(err) {
                                     console.error('Upload error:', err);
                                     // Jika Cloudinary gagal, gunakan base64
                                     linkFotoHidden.value = '';
-                                    uploadStatus.textContent = '⚠️ Menggunakan backup base64';
-                                    uploadStatus.style.color = '#856404';
-                                    showAlert('Cloudinary gagal, menggunakan backup lokal', 'warning');
+                                    uploadStatus.textContent = '⚠️ Cloudinary gagal, menggunakan backup base64';
+                                    uploadStatus.className = 'status-text status-warning';
+                                    // Base64 sudah tersimpan di fotoBase64Hidden
+                                    isFotoReady = true;
                                     isUploading = false;
+                                    showAlert('Cloudinary gagal, menggunakan backup lokal', 'warning');
                                     validateForm();
                                 });
                         }, 'image/jpeg', 0.8);
@@ -511,14 +525,15 @@
                     showAlert('Gagal membaca file', 'danger');
                     isUploading = false;
                     uploadStatus.textContent = '❌ Gagal memproses foto';
-                    uploadStatus.style.color = '#dc3545';
+                    uploadStatus.className = 'status-text status-error';
                 };
             });
             
             // ========== VALIDASI FORM REAL-TIME ==========
             ['no-tiang', 'penyulang', 'gardu', 'kondisi'].forEach(function(id) {
-                document.getElementById(id).addEventListener('change', validateForm);
-                document.getElementById(id).addEventListener('input', validateForm);
+                var el = document.getElementById(id);
+                el.addEventListener('change', validateForm);
+                el.addEventListener('input', validateForm);
             });
             
             // ========== EVENT: SUBMIT FORM ==========
@@ -543,13 +558,16 @@
                 
                 // Tambahkan semua data
                 for (var pair of formData.entries()) {
-                    if (pair[0] === 'Link Foto' && !pair[1]) {
+                    // Skip FOTO_BASE64, kita kirim sebagai Link Foto jika Cloudinary gagal
+                    if (pair[0] === 'FOTO_BASE64') continue;
+                    
+                    if (pair[0] === 'Link Foto' && (!pair[1] || pair[1] === '')) {
                         // Jika link foto kosong, gunakan base64
                         var base64Data = fotoBase64Hidden.value;
                         if (base64Data) {
                             searchParams.append('Link Foto', base64Data);
                         }
-                    } else if (pair[0] !== 'FOTO_BASE64') {
+                    } else {
                         searchParams.append(pair[0], pair[1]);
                     }
                 }
@@ -574,7 +592,9 @@
                     linkFotoHidden.value = '';
                     fotoBase64Hidden.value = '';
                     fotoBase64Data = null;
+                    isFotoReady = false;
                     uploadStatus.textContent = '';
+                    uploadStatus.className = 'status-text';
                     uploadProgress.style.display = 'none';
                     uploadProgressBar.style.width = '0%';
                     inputKoordinat.value = '';
